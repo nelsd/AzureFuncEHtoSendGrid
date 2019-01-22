@@ -1,0 +1,80 @@
+// #r "Microsoft.Azure.EventHubs"
+// #r "SendGrid"
+//#r "Newtonsoft.Json.dll"
+#r "../bin/Microsoft.Azure.EventHubs.dll"
+#r "../bin/SendGrid.dll"
+#r "../bin/Newtonsoft.Json.dll"
+//#r "../bin/System.IO.dll"
+#r "../bin/Microsoft.WindowsAzure.Storage.dll"
+
+using System;
+using System.Text;
+using Microsoft.Azure.EventHubs;
+using SendGrid.Helpers.Mail;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Host;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.IO;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
+ 
+public static SendGridMessage Run(EventData myEventHubMessage, Binder binder, ILogger log)
+{
+    // log.LogInformation($"C# Event Hub trigger function processed a message: {myEventHubMessage}");
+    var payload  = Encoding.UTF8.GetString(myEventHubMessage.Body);
+    //log.LogInformation($"Message = {payload}");
+    SendGridMessage message = new SendGridMessage();
+
+    //using (var sr = new StreamReader(inputBlob))
+    //var jo = JObject.Parse(Encoding.UTF8.GetString(myEventHubMessage.Body));
+
+    string alerttypelookup = "alertType";
+    string confidencelookup = "confidence";
+    string imagePathlookup = "imagePath";
+
+    int alertTypeOccur = payload.IndexOf(alerttypelookup); //, StringComparison.CurrentCultureIgnoreCase);
+    int confidenceOccur = payload.IndexOf(confidencelookup); //, StringComparison.CurrentCultureIgnoreCase);
+    int imagePathOccur = payload.IndexOf(imagePathlookup); //, StringComparison.CurrentCultureIgnoreCase);
+    //log.LogInformation($"alertTypeOccur = {alertTypeOccur}, confidenceOccur = {confidenceOccur}, imagePathOccur = {imagePathOccur}");
+
+    int alertTypeOccurComma = payload.IndexOf(',', alertTypeOccur+1, payload.Length - alertTypeOccur - 1); //, sc);
+    int confidenceOccurComma = payload.IndexOf(',', confidenceOccur+1, payload.Length - confidenceOccur - 1);
+    int imagePathOccurComma = payload.IndexOf(',', imagePathOccur+1, payload.Length - imagePathOccur - 1);
+    //log.LogInformation($"alertTypeOccurComma = {alertTypeOccurComma}, confidenceOccurComma = {confidenceOccurComma}, imagePathOccurComma = {imagePathOccurComma}");
+    
+    string alertTypeFound = payload.Substring(alertTypeOccur + alerttypelookup.Length, alertTypeOccurComma - alertTypeOccur - alerttypelookup.Length);
+    string confidenceFound = payload.Substring(confidenceOccur + confidencelookup.Length, confidenceOccurComma - confidenceOccur - confidencelookup.Length);
+    string imagePathFound = payload.Substring(imagePathOccur + imagePathlookup.Length, imagePathOccurComma - imagePathOccur - imagePathlookup.Length);
+    //log.LogInformation($"alertTypeFound = {alertTypeFound}, confidenceFound = {confidenceFound}, imagePathFound = {imagePathFound}");
+
+    string alertTypeFoundcleanedup = alertTypeFound.Substring(alertTypeFound.IndexOf(':') + 1).Trim();
+    string confidenceFoundcleanedup = confidenceFound.Substring(confidenceFound.IndexOf(':') + 1).Trim();
+    string imagePathFoundcleanedup = imagePathFound.Substring(imagePathFound.IndexOf(':') + 1).Trim();
+    log.LogInformation($"alertTypeFoundcleanedup = {alertTypeFoundcleanedup}, confidenceFoundcleanedup = {confidenceFoundcleanedup}, imagePathFoundcleanedup = {imagePathFoundcleanedup}");
+    //CloudBlob blob = container.GetBlobReference(inputBlob);
+    //Stream stream = blob.OpenRead();
+    //https://xebia.com/blog/azure-functions-imperative-bindings/
+    //https://docs.microsoft.com/en-us/azure/azure-functions/functions-reference-csharp
+
+    message.AddContent("text/plain", $" There is an alert of type {alertTypeFoundcleanedup} with a confidence of {confidenceFoundcleanedup}");
+
+    // if(!String.IsNullOrEmpty(imagePathFoundcleanedup))
+    // {
+    //     var attributes = new Attribute[]
+    //         {    
+    //             new BlobAttribute(imagePathFoundcleanedup),
+    //             new StorageAccountAttribute("connViolationRepository")
+    //         };
+
+
+    //     //using (var reader = await binder.BindAsync<Stream>(attributes).ConfigureAwait(false))
+    //     using (var reader = await binder.Bind<Stream>(attributes).ConfigureAwait(false))
+    //     {
+    //         reader.Seek(0, SeekOrigin.Begin);
+    //         message.AddAttachment(reader, "Image");
+    //     }
+    // }   
+
+    return message;    
+}

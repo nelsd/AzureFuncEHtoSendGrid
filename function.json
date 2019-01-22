@@ -1,0 +1,22 @@
+{
+  "bindings": [
+    {
+      "type": "eventHubTrigger",
+      "name": "myEventHubMessage",
+      "direction": "in",
+      "eventHubName": "ehevtviolation",
+      "connection": "nrdevtViolation_ehinstSASKey_EVENTHUB",
+      "consumerGroup": "$Default",
+      "cardinality": "many"
+    },
+    {
+      "type": "sendGrid",
+      "name": "$return",
+      "apiKey": "SendVideoAlert",
+      "to": "itsnelson@hotmail.com",
+      "from": "nelsond24@gmail.com",
+      "subject": "Alert - Video Analytics",
+      "direction": "out"
+    }
+  ]
+}
