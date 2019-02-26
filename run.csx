@@ -23,8 +23,18 @@ using Microsoft.WindowsAzure.Storage.Blob;
 // using Twilio.Rest.Api.V2010.Account;
 // using Twilio.Types;
 
-//public static SendGridMessage Run(EventData myEventHubMessage, out CreateMessageOptions messagetosms, Binder binder, ILogger log)
-public static SendGridMessage Run(EventData myEventHubMessage, ILogger log)
+
+public class AlertContent
+{
+    public string PartitionKey { get; set; }
+    public string RowKey { get; set; }
+    public string alertType { get; set; }
+    public string confidence { get; set; }
+    public string content { get; set; }
+}
+
+//public static SendGridMessage Run(EventData myEventHubMessage, ICollector<AlertContent> outputTable, out CreateMessageOptions messagetosms, Binder binder, ILogger log)
+public static SendGridMessage Run(EventData myEventHubMessage, ICollector<AlertContent> outputTable, ILogger log)
 {
     // log.LogInformation($"C# Event Hub trigger function processed a message: {myEventHubMessage}");
     var payload  = Encoding.UTF8.GetString(myEventHubMessage.Body);
@@ -33,10 +43,11 @@ public static SendGridMessage Run(EventData myEventHubMessage, ILogger log)
     string alerttypelookup = "alertType";
     string confidencelookup = "confidence";
     string imagePathlookup = "imagePath";
+    string detTSlookup = "detectionTimestamp";
 
-    int alertTypeOccur = payload.IndexOf(alerttypelookup); //, StringComparison.CurrentCultureIgnoreCase);
-    int confidenceOccur = payload.IndexOf(confidencelookup); //, StringComparison.CurrentCultureIgnoreCase);
-    int imagePathOccur = payload.IndexOf(imagePathlookup); //, StringComparison.CurrentCultureIgnoreCase);
+    int alertTypeOccur = payload.IndexOf(alerttypelookup);
+    int confidenceOccur = payload.IndexOf(confidencelookup);
+    int imagePathOccur = payload.IndexOf(imagePathlookup);
     //log.LogInformation($"alertTypeOccur = {alertTypeOccur}, confidenceOccur = {confidenceOccur}, imagePathOccur = {imagePathOccur}");
 
     int alertTypeOccurComma = payload.IndexOf(',', alertTypeOccur+1, payload.Length - alertTypeOccur - 1); //, sc);
@@ -51,6 +62,26 @@ public static SendGridMessage Run(EventData myEventHubMessage, ILogger log)
 
     string alertTypeFoundcleanedup = alertTypeFound.Substring(alertTypeFound.IndexOf(':') + 1).Trim();
     string confidenceFoundcleanedup = confidenceFound.Substring(confidenceFound.IndexOf(':') + 1).Trim();
+
+
+    //Partition key = Date part of "detectionTimestamp": "2018-08-16T21:15:19.125Z"
+    int detTimeStampOccur = payload.IndexOf(detTSlookup);
+    int detTimeStampOccurT = payload.IndexOf('T', detTimeStampOccur + detTSlookup.Length, payload.Length - detTimeStampOccur - detTSlookup.Length);
+    log.LogInformation($"detTimeStampOccurT = {detTimeStampOccurT.ToString()}");
+    int numchar2Esc = Int32.Parse(Environment.GetEnvironmentVariable("xtrastrspanTimestamp"));
+    string detTimeStampFound = payload.Substring(detTimeStampOccur + detTSlookup.Length + numchar2Esc, detTimeStampOccurT - detTimeStampOccur - detTSlookup.Length - numchar2Esc);
+    
+    //Save to the Azure Storage table with PK as Date of detection
+    outputTable.Add(
+            new AlertContent() { 
+                PartitionKey = detTimeStampFound, 
+                RowKey = Guid.NewGuid().ToString(),
+                alertType = alertTypeFoundcleanedup,
+                confidence = confidenceFoundcleanedup,
+                content = payload }
+            );
+
+    //Get the image which is in the blob and do a SAS on it and send and email
     string imagePathFoundcleanedup = imagePathFound.Substring(imagePathFound.IndexOf(':') + 1).Trim(); //.Replace("\\\\","\\").Replace("\"","");
     string imagePathFoundFinal = imagePathFoundcleanedup.Replace("\\\\\\\\","\\").Replace("\"","");
     string container;
